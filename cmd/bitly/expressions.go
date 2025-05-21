@@ -11,7 +11,7 @@ import (
 	"github.com/illbjorn/echo"
 )
 
-func ExprAdd(expr parse.Add, r *repl.REPL) (int64, error) {
+func ExprAdd(expr *parse.Add, r *repl.REPL) (int64, error) {
 	left, err := ExprMult(expr.Left, r)
 	if err != nil {
 		return left, err
@@ -102,6 +102,16 @@ func ExprLogic(expr *parse.Logic, r *repl.REPL) (int64, error) {
 }
 
 func ExprBasic(expr *parse.Basic, r *repl.REPL) (left int64, err error) {
+	// Group
+	if expr.Group != nil {
+		left, err = ExprAdd(expr.Group, r)
+		if expr.Negate != nil {
+			return left * -1, err
+		}
+		return left, err
+	}
+
+	// Literal, variable
 	switch expr.BasicValue.Kind {
 	case token.Base2:
 		left, err = strconv.ParseInt(expr.BasicValue.Meta.Value(), 2, 64)

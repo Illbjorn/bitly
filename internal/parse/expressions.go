@@ -14,18 +14,19 @@ type BinaryExprMore[T any] struct {
 
 type (
 	Expression = Add
-	Add        BinaryExpr[Mult]
-	AddM       = BinaryExprMore[Mult]
-	Mult       BinaryExpr[Pow]
-	MultM      = BinaryExprMore[Pow]
-	Pow        BinaryExpr[Shift]
-	PowM       = BinaryExprMore[Shift]
-	Shift      BinaryExpr[Logic]
-	ShiftM     = BinaryExprMore[Logic]
-	Logic      BinaryExpr[Basic]
-	LogicM     = BinaryExprMore[Basic]
+	Add        BinaryExpr[Mult]        // mult
+	AddM       = BinaryExprMore[Mult]  // ((+ | -) mult)*
+	Mult       BinaryExpr[Pow]         // pow
+	MultM      = BinaryExprMore[Pow]   // ((* | / | %) pow)*
+	Pow        BinaryExpr[Shift]       // shift
+	PowM       = BinaryExprMore[Shift] // (^ shift)*
+	Shift      BinaryExpr[Logic]       // logic
+	ShiftM     = BinaryExprMore[Logic] // ((<< | >>) logic)*
+	Logic      BinaryExpr[Basic]       // basic
+	LogicM     = BinaryExprMore[Basic] // ((& | |) basic)*
 
 	Basic struct {
 		Negate, BasicValue *token.Token
+		Group              *Add
 	}
 )

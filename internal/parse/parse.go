@@ -41,7 +41,9 @@ func ParseStatement(p *Parser) (stmt any, err error) {
 	return nil, ErrNoMatch
 }
 
-func ParseBind(p *Parser) (bind Bind, err error) {
+func ParseBind(p *Parser) (bind *Bind, err error) {
+	bind = new(Bind)
+
 	// bind
 	//   : VAR ID EQ expr
 	//   ;
@@ -69,8 +71,9 @@ func ParseBind(p *Parser) (bind Bind, err error) {
 	return
 }
 
-func ParseSet(p *Parser) (set Set, err error) {
+func ParseSet(p *Parser) (set *Set, err error) {
 	snap := p.Snapshot()
+	set = new(Set)
 
 	// SET
 	if _, err = p.Want(token.Set); err != nil {
@@ -99,8 +102,9 @@ func ParseSet(p *Parser) (set Set, err error) {
 	return
 }
 
-func ParseHelp(p *Parser) (help Help, err error) {
+func ParseHelp(p *Parser) (help *Help, err error) {
 	snap := p.Snapshot()
+	help = new(Help)
 
 	if _, err = p.Want(token.Help); err != nil {
 		p.Revert(snap)
@@ -110,11 +114,13 @@ func ParseHelp(p *Parser) (help Help, err error) {
 	return
 }
 
-func ParseExpr(p *Parser) (add Add, err error) {
+func ParseExpr(p *Parser) (add *Add, err error) {
 	return ParseExprAdd(p)
 }
 
-func ParseExprAdd(p *Parser) (add Add, err error) {
+func ParseExprAdd(p *Parser) (add *Add, err error) {
+	add = new(Add)
+
 	// Left
 	if add.Left, err = ParseExprMult(p); err != nil {
 		return add, err
@@ -255,8 +261,9 @@ func ParseExprBasic(p *Parser) (basic *Basic, err error) {
 	}
 
 	// Group
-	//
-	// TODO
+	if basic.Group, err = ParseExprGroup(p); err == nil {
+		return
+	}
 
 	// Init the error
 	e := ux.NewError("expected operand").WithSrc(p.Tokens[0].Meta.Source)
@@ -270,4 +277,28 @@ func ParseExprBasic(p *Parser) (basic *Basic, err error) {
 	}
 
 	return nil, e
+}
+
+func ParseExprGroup(p *Parser) (group *Add, err error) {
+	snap := p.Snapshot()
+
+	// (
+	if _, err = p.Want(token.ParenL); err != nil {
+		p.Revert(snap)
+		return
+	}
+
+	// Add
+	if group, err = ParseExprAdd(p); err != nil {
+		p.Revert(snap)
+		return
+	}
+
+	// )
+	if _, err = p.Want(token.ParenR); err != nil {
+		p.Revert(snap)
+		return
+	}
+
+	return
 }

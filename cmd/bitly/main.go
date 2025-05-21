@@ -107,7 +107,7 @@ func Evaluate(v any, r *repl.REPL) error {
 	}
 
 	switch v := v.(type) {
-	case parse.Bind:
+	case *parse.Bind:
 		i, err := Bind(v, r)
 		if err != nil {
 			return fmt.Errorf("Failed to bind [%s]: %s.", v.ID, err)
@@ -115,18 +115,18 @@ func Evaluate(v any, r *repl.REPL) error {
 		echo.Infof("[%s]=>[%d]", v.ID.Meta.Value(), i)
 		return nil
 
-	case parse.Set:
+	case *parse.Set:
 		err := ApplySetting(r, v)
 		if err != nil {
 			return fmt.Errorf("Failed to apply setting: %s.", err)
 		}
 		return nil
 
-	case parse.Help:
+	case *parse.Help:
 		echo.Info(settings.List())
 		return nil
 
-	case parse.Expression:
+	case *parse.Expression:
 		i, err := ExprAdd(v, r)
 		if err != nil {
 			return fmt.Errorf("Failed to evaluate expression: %s.", err)

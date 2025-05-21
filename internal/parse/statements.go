@@ -6,7 +6,7 @@ type Statement = interface{ Bind | Set }
 
 type Bind struct {
 	ID   *token.Token
-	Expr Expression
+	Expr *Expression
 }
 
 type Set struct {

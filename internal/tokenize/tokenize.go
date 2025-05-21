@@ -12,56 +12,74 @@ import (
 
 var ErrNoInput = fmt.Errorf("no input")
 
-func Tokenize(input []byte) (tokens []Token, err error) {
+func Tokenize(input []byte) ([]Token, error) {
 	if len(input) == 0 {
 		return nil, ErrNoInput
 	}
 
-	tz := NewTokenizer(input)
-	for tz.More() {
+	var (
+		tokens = make([]token.Token, 0, 32)
+		tz     = NewTokenizer(input)
+	)
+	for {
 		next, nextNext := tz.Peek(1), tz.Peek(2)
 		if next == EOF {
-			return
+			return tokens, nil
 		}
 
 		tk := token.New(tz.Input)
 		markTokenStart(tz, &tk)
 
 		switch {
-		case isAlpha(next): // Keyword
-			err = word(tz, &tk)
-
-		case next == '0' && nextNext == 'b': // Base-2  Literal
-			tz.Pos += 2        // Consume the prefix
-			tk.Meta.Start += 2 // Update the start offset
-			err = base2(tz, &tk)
-
-		case next == '0' && nextNext == 'x': // Base-16 Literal
-			tz.Pos += 2        // Consume the prefix
-			tk.Meta.Start += 2 // Update the start offset
-			err = base16(tz, &tk)
-
-		case isBase10(next): // Base-10 Literal
-			err = base10(tz, &tk)
-
-		case isSymbol(next): // Symbol
-			err = symbol(tz, &tk)
-
-		case isSpace(next): // Discard whitespace
+		case isSpace(next):
+			// Discard whitespace
 			tz.Adv()
 
-		case isQuote(next): // Strings
-			err = quote(tz, &tk)
+		case next == '0' && nextNext == 'b':
+			// Base-2 Literal (order is important!)
+			tz.Pos += 2        // Consume the prefix
+			tk.Meta.Start += 2 // Update the start offset
+			if err := base2(tz, &tk); err != nil {
+				return nil, err
+			}
+
+		case next == '0' && nextNext == 'x':
+			// Base-16 Literal (order is important!)
+			tz.Pos += 2        // Consume the prefix
+			tk.Meta.Start += 2 // Update the start offset
+			if err := base16(tz, &tk); err != nil {
+				return nil, err
+			}
+
+		case isBase10(next):
+			// Base-10 Literal (order is important!)
+			if err := base10(tz, &tk); err != nil {
+				return nil, err
+			}
+
+		case isAlpha(next):
+			// Keyword
+			if err := keyword(tz, &tk); err != nil {
+				return nil, err
+			}
+
+		case isSymbol(next):
+			// Symbol
+			if err := symbol(tz, &tk); err != nil {
+				return nil, err
+			}
+
+		case isQuote(next):
+			// Strings
+			if err := stringL(tz, &tk); err != nil {
+				return nil, err
+			}
 
 		default:
-			err = ux.
+			return nil, ux.
 				NewError("found unexpected symbol [%c]", next).
 				WithSrc(input).
 				WithAnnotation(int(tz.Col), int(tz.Col))
-		}
-
-		if err != nil {
-			return
 		}
 
 		if tk.Kind > 0 {
@@ -69,7 +87,6 @@ func Tokenize(input []byte) (tokens []Token, err error) {
 			tokens = append(tokens, tk)
 		}
 	}
-	return
 }
 
 func markTokenStart(tz *Tokenizer, tk *Token) {
@@ -90,17 +107,17 @@ func markTokenStop(tz *Tokenizer, tk *Token) {
  * Keywords
  *----------------------------------------------------------------------------*/
 
+func isAlpha(b byte) bool {
+	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+}
+
 var keywords = map[string]token.Kind{
 	"var":  token.Var,
 	"set":  token.Set,
 	"help": token.Help,
 }
 
-func isAlpha(b byte) bool {
-	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
-}
-
-func word(tz *Tokenizer, tk *Token) (err error) {
+func keyword(tz *Tokenizer, tk *Token) (err error) {
 	// Valid keyword characters are:
 	// alpha : [A-Za-z]+ ;
 	// num   : [0-9]+    ;
@@ -199,11 +216,11 @@ func isSpace(b byte) bool {
 }
 
 func isSymbol(b byte) bool {
-	const symbols = "<<>>-+/*%^&|="
+	const symbols = "<<>>-+/*%^&|=()"
 	return strings.IndexByte(symbols, b) != -1
 }
 
-func symbol(tz *Tokenizer, tk *Token) (err error) {
+func symbol(tz *Tokenizer, tk *Token) error {
 	next, nextNext := tz.Peek(1), tz.Peek(2)
 
 	switch {
@@ -270,25 +287,25 @@ func symbol(tz *Tokenizer, tk *Token) (err error) {
 		tz.Adv()
 
 	default:
-		err = ux.
+		return ux.
 			NewError("found unexpected symbol [%c][%c]", next, nextNext).
 			WithSrc(tz.Input).
 			WithAnnotation(int(tz.Col), int(tz.Col))
 	}
 
-	return
+	return nil
 }
 
 func isQuote(b byte) bool {
 	return b == '\'' || b == '"'
 }
 
-func quote(tz *Tokenizer, tk *token.Token) error {
+func stringL(tz *Tokenizer, tk *token.Token) error {
 	tk.Kind = token.String
 
-	term := tz.Peek(1) //
-	tz.Adv()           // ' | "
-	tk.Meta.Start = uint32(tz.Pos + 1)
+	term := tz.Peek(1)                 // ' | "
+	tz.Adv()                           // ' | "
+	tk.Meta.Start = uint32(tz.Pos + 1) // Adjust the start position to after the '
 	for {
 		if !tz.More() {
 			return ux.
@@ -299,7 +316,7 @@ func quote(tz *Tokenizer, tk *token.Token) error {
 		if tz.Peek(1) == term {
 			break
 		}
-		tz.Adv()
+		tz.Adv() // ' | "
 	}
 	tk.Meta.Stop = uint32(tz.Pos + 1)
 	tz.Adv()

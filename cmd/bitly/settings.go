@@ -10,6 +10,8 @@ import (
 	s "github.com/illbjorn/bitly/internal/settings"
 )
 
+// MergeSettings clobbers any `settings.Settings` (defined below) with values
+// provided via CLI inputs.
 func MergeSettings(args Args) {
 	if args.Binary {
 		Bin.Set(true)
@@ -28,7 +30,11 @@ func MergeSettings(args Args) {
 	}
 }
 
-func ApplySetting(r *repl.REPL, s parse.Set) (err error) {
+// ApplySetting accepts a REPL state and parsed `Set` statement, performing the
+// appropriate setting assignment.
+//
+// The REPL state is passed in to allow mutation of the readline prompt.
+func ApplySetting(r *repl.REPL, s *parse.Set) (err error) {
 	key, value := s.Name.String(), s.Value.BasicValue.String()
 
 	switch key {
@@ -92,6 +98,7 @@ func ApplySetting(r *repl.REPL, s parse.Set) (err error) {
 	return
 }
 
+// Settings
 var (
 	Show = s.RegisterBool(s.Bool(
 		"show",
